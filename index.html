@@ -596,9 +596,15 @@
         </div>
     </div>
 
+    <!-- 独立绑定上传，避免主模块加载失败时无法选文件 -->
+    <script>
+        document.getElementById('uploadBtn').addEventListener('click', function () {
+            document.getElementById('fileInput').click();
+        });
+    </script>
     <script type="module">
-        import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs';
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/build/pdf.worker.mjs';
+        import * as pdfjsLib from './pdfjs-dist/build/pdf.mjs';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = './pdfjs-dist/build/pdf.worker.mjs';
 
         const STORAGE_KEY = 'pdfWordAssistant_vocab';
         const SETTINGS_KEY = 'pdfWordAssistant_settings';
@@ -919,7 +925,7 @@
 
             window.__tesseractLoading = new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = 'lib/tesseract.min.js';
+                script.src = './lib/tesseract.min.js';
                 script.onload = () => {
                     if (window.Tesseract?.createWorker) {
                         resolve(window.Tesseract);
@@ -945,7 +951,7 @@
                 ocrWorkerPromise = (async () => {
                     const Tesseract = await loadTesseract();
                     const worker = await Tesseract.createWorker('eng', 1, {
-                        workerPath: new URL('lib/worker.min.js', document.getElementById('appBase').href).href,
+                        workerPath: new URL('./lib/worker.min.js', document.getElementById('appBase').href).href,
                         corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5',
                         logger: m => {
                             if (m.status === 'recognizing text' && onProgress) {
@@ -1484,7 +1490,6 @@
         document.getElementById('popupBackdrop').addEventListener('click', closePopup);
 
         document.getElementById('enableOcrBtn').onclick = () => enableOcrMode(ocrMode);
-        document.getElementById('uploadBtn').onclick = () => document.getElementById('fileInput').click();
         document.getElementById('fileInput').addEventListener('change', handleFileUpload);
         document.getElementById('changeFileBtn').onclick = resetToUpload;
         document.getElementById('prevBtn').onclick = prevPage;
