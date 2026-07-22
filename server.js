@@ -20,6 +20,7 @@ const server = http.createServer((req, res) => {
         '.svg': 'image/svg+xml',
         '.bcmap': 'application/octet-stream',
         '.wasm': 'application/wasm',
+        '.gz': 'application/gzip',
         '.map': 'application/json'
     }[extname] || 'application/octet-stream';
 

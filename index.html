@@ -465,6 +465,10 @@
         <div class="header">
             <h1>📚 PDF单词学习助手</h1>
             <p>上传英语练习册或课本，点击单词查看释义、音标并听发音</p>
+            <p style="font-size:0.85rem;margin-top:6px;opacity:0.85">
+                国内推荐：<a href="https://jintianlei.gitee.io/pdf-word-helper/" style="color:#fff;text-decoration:underline" target="_blank">Gitee 镜像</a>
+                · 海外：<a href="https://jintianlei.github.io/pdf-word-helper/" style="color:#fff;text-decoration:underline" target="_blank">GitHub Pages</a>
+            </p>
         </div>
 
         <div class="main-layout">
@@ -714,6 +718,10 @@
         const wordOverlay = document.getElementById('wordOverlay');
         const wordCache = new Map();
 
+        function getAppBase() {
+            return document.getElementById('appBase').href;
+        }
+
         // ── Vocabulary book ──
         function loadVocab() {
             try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -950,9 +958,11 @@
             if (!ocrWorkerPromise) {
                 ocrWorkerPromise = (async () => {
                     const Tesseract = await loadTesseract();
+                    const base = getAppBase();
                     const worker = await Tesseract.createWorker('eng', 1, {
-                        workerPath: new URL('./lib/worker.min.js', document.getElementById('appBase').href).href,
-                        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5',
+                        workerPath: new URL('./lib/worker.min.js', base).href,
+                        corePath: new URL('./lib/tesseract-core/', base).href,
+                        langPath: new URL('./lib/tesseract-lang/', base).href,
                         logger: m => {
                             if (m.status === 'recognizing text' && onProgress) {
                                 onProgress(Math.round((m.progress || 0) * 100));
@@ -1252,10 +1262,8 @@
         async function quickAddVocab(word) {
             let data = wordCache.get(word);
             if (!data) {
-                try {
-                    const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`);
-                    if (resp.ok) { data = await resp.json(); wordCache.set(word, data); }
-                } catch {}
+                data = await fetchDictionary(word.toLowerCase());
+                if (data) wordCache.set(word, data);
             }
             if (data && addToVocab(word, data)) {
                 updateVocabBtn(word);
@@ -1276,10 +1284,8 @@
 
                 let data = wordCache.get(word);
                 if (!data) {
-                    try {
-                        const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`);
-                        if (resp.ok) { data = await resp.json(); wordCache.set(word, data); }
-                    } catch {}
+                    data = await fetchDictionary(word.toLowerCase());
+                    if (data) wordCache.set(word, data);
                 }
                 const ph = data ? extractPhonetic(data) : '';
                 const summary = data ? extractSummary(data) : '';
@@ -1293,18 +1299,76 @@
             document.getElementById('hoverTooltip').style.display = 'none';
         }
 
+        async function fetchDictionaryApiDev(word) {
+            const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+            if (!resp.ok) return null;
+            return await resp.json();
+        }
+
+        async function fetchFromDatamuse(word) {
+            const resp = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(word)}&md=dp&max=1`);
+            if (!resp.ok) return null;
+            const arr = await resp.json();
+            if (!arr[0] || arr[0].word.toLowerCase() !== word.toLowerCase()) return null;
+            let phonetic = '';
+            const definitions = [];
+            (arr[0].tags || []).forEach(tag => {
+                if (tag.startsWith('pron:')) phonetic = tag.slice(5);
+                if (tag.startsWith('def:')) definitions.push({ definition: tag.slice(4) });
+            });
+            if (!definitions.length && !phonetic) return null;
+            return [{
+                word: arr[0].word,
+                phonetic: phonetic ? `/${phonetic}/` : '',
+                phonetics: phonetic ? [{ text: `/${phonetic}/` }] : [],
+                meanings: definitions.length ? [{ partOfSpeech: 'def', definitions: definitions.slice(0, 3) }] : []
+            }];
+        }
+
+        async function fetchFromWiktionary(word) {
+            const resp = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word.toLowerCase())}`);
+            if (!resp.ok) return null;
+            const raw = await resp.json();
+            const entries = raw.en || (Array.isArray(raw) ? raw : null);
+            if (!entries?.length) return null;
+            return [{
+                word,
+                phonetic: '',
+                meanings: entries.slice(0, 4).map(m => ({
+                    partOfSpeech: m.partOfSpeech || 'def',
+                    definitions: (m.definitions || []).slice(0, 2).map(d =>
+                        typeof d === 'string' ? { definition: d } : { definition: d.definition || String(d) }
+                    )
+                }))
+            }];
+        }
+
+        async function fetchDictionary(word) {
+            const w = word.toLowerCase();
+            const sources = [
+                () => fetchDictionaryApiDev(w),
+                () => fetchFromDatamuse(w),
+                () => fetchFromWiktionary(w)
+            ];
+            for (const fn of sources) {
+                try {
+                    const result = await fn();
+                    if (result?.[0]) return result;
+                } catch { /* try next source */ }
+            }
+            return null;
+        }
+
         async function lookupWord(word, autoPlay = false) {
             let data = wordCache.get(word);
             if (!data) {
-                try {
-                    const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`);
-                    if (!resp.ok) throw new Error('not found');
-                    data = await resp.json();
+                data = await fetchDictionary(word.toLowerCase());
+                if (data) {
                     wordCache.set(word, data);
-                } catch {
+                } else {
                     document.getElementById('popupPhonetic').textContent = '暂无音标';
                     document.getElementById('popupMeanings').innerHTML = '';
-                    document.getElementById('lookupError').textContent = '词典中未找到，将使用浏览器朗读';
+                    document.getElementById('lookupError').textContent = '词典暂不可用，将使用浏览器朗读';
                     currentLookup = { word, data: null };
                     addHistory(word, '');
                     if (autoPlay) playAudio();
