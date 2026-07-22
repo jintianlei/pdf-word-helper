@@ -1,4 +1,4 @@
-# 将代码推送到 Gitee 并提示开启 Pages
+# Gitee Pages 已于 2024 年下线，此脚本仅用于代码镜像备份
 param(
     [string]$GiteeUser = "jintianlei",
     [string]$Repo = "pdf-word-helper"
@@ -7,19 +7,14 @@ param(
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-$remoteUrl = "https://gitee.com/$GiteeUser/$Repo.git"
-Write-Host ">>> 目标仓库: $remoteUrl"
+Write-Host ">>> 注意：Gitee Pages 已停止服务，无法再部署静态网站。" -ForegroundColor Yellow
+Write-Host ">>> 国内访问请使用 Cloudflare Pages，见 .github/workflows/deploy-cloudflare.yml" -ForegroundColor Yellow
+Write-Host ""
 
+$remoteUrl = "https://gitee.com/$GiteeUser/$Repo.git"
 git remote get-url gitee 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) { git remote remove gitee }
 git remote add gitee $remoteUrl
 git push -u gitee main
 
-Write-Host ""
-Write-Host ">>> 推送完成！请在 Gitee 开启 Pages："
-Write-Host "    1. 打开 https://gitee.com/$GiteeUser/$Repo/settings/pages"
-Write-Host "    2. 分支选 main，目录选 / （根目录）"
-Write-Host "    3. 点击启动/更新"
-Write-Host ""
-Write-Host ">>> 国内访问地址（部署成功后）："
-Write-Host "    https://$GiteeUser.gitee.io/$Repo/"
+Write-Host ">>> 代码已同步到 Gitee（仅作备份，无法开 Pages）"
