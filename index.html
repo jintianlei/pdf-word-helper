@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <base id="appBase" href="/">
+    <script>
+        (function () {
+            var path = location.pathname;
+            if (path.endsWith('/index.html')) path = path.slice(0, -10);
+            if (!path.endsWith('/')) path += '/';
+            document.getElementById('appBase').href = path;
+        })();
+    </script>
+    <title>PDF单词学习助手</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 16px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 24px; }
+        .header h1 { font-size: clamp(1.5rem, 4vw, 2.5rem); margin-bottom: 8px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .header p { font-size: clamp(0.9rem, 2.5vw, 1.1rem); opacity: 0.9; }
+
+        .main-layout {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .main-content { flex: 1; min-width: 0; }
+
+        .upload-area {
+            background: white;
+            border-radius: 16px;
+            padding: 40px 24px;
+            text-align: center;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            border: 3px dashed transparent;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .upload-area.drag-over {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+        .upload-icon { font-size: 3rem; margin-bottom: 12px; }
+        .upload-hint { color: #888; margin-top: 12px; font-size: 0.9rem; }
+        .upload-btn {
+            display: inline-block;
+            padding: 14px 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: none;
+        }
+        .upload-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(102,126,234,0.4); }
+        #fileInput { display: none; }
+
+        .pdf-container {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: none;
+        }
+        .pdf-toolbar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .toolbar-btn, .toolbar-btn-secondary {
+            padding: 8px 14px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .toolbar-btn:hover, .toolbar-btn-secondary:hover { background: #e0e0e0; }
+        .toolbar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .toolbar-btn-secondary { background: #eef1ff; color: #667eea; }
+        .page-info { font-weight: bold; color: #667eea; font-size: 0.95rem; }
+        .page-jump {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .page-jump input {
+            width: 48px;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .zoom-controls { display: flex; align-items: center; gap: 8px; }
+        .zoom-btn {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            border: none;
+            background: #f0f0f0;
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+        .zoom-btn:hover { background: #e0e0e0; }
+
+        .pdf-wrapper {
+            display: flex;
+            justify-content: center;
+            overflow: auto;
+            max-height: 70vh;
+            -webkit-overflow-scrolling: touch;
+        }
+        .pdf-page { position: relative; display: inline-block; line-height: 0; }
+        #pdfCanvas { display: block; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .textLayer {
+            position: absolute; inset: 0; overflow: clip;
+            line-height: 1; text-size-adjust: none;
+            transform-origin: 0 0; pointer-events: none;
+        }
+        .textLayer span { color: transparent; position: absolute; white-space: pre; transform-origin: 0 0; }
+        #wordOverlay { position: absolute; inset: 0; pointer-events: none; z-index: 1; user-select: none; -webkit-user-select: none; }
+        .word-span {
+            position: absolute;
+            cursor: pointer;
+            pointer-events: auto;
+            background: rgba(102, 126, 234, 0.08);
+            border-radius: 2px;
+            transition: background 0.15s;
+            min-height: 14px;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .word-span:hover { background: rgba(102, 126, 234, 0.28); }
+        .word-span.active { background: rgba(102, 126, 234, 0.45); outline: 2px solid rgba(102,126,234,0.6); }
+        .word-span.ocr-word { background: rgba(255, 152, 0, 0.1); }
+        .word-span.ocr-word:hover { background: rgba(255, 152, 0, 0.25); }
+
+        .scan-warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 12px 14px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+            display: none;
+            line-height: 1.5;
+        }
+        .scan-warning .ocr-btn {
+            margin-top: 8px;
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .scan-warning .ocr-btn:hover { background: #5a6fd6; }
+        .scan-warning .ocr-btn:disabled { opacity: 0.6; cursor: wait; }
+        .ocr-badge {
+            display: inline-block;
+            background: #d4edda;
+            color: #155724;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 6px;
+        }
+        .ocr-progress {
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.85);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 8px;
+            gap: 10px;
+        }
+        .ocr-progress.show { display: flex; }
+        .ocr-progress-bar {
+            width: 70%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .ocr-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.2s;
+        }
+        .ocr-progress-text { color: #667eea; font-size: 0.9rem; }
+
+        /* Popup */
+        .popup-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 999;
+            display: none;
+        }
+        .popup {
+            position: fixed;
+            background: white;
+            border-radius: 14px;
+            padding: 18px;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+            z-index: 1000;
+            width: min(380px, calc(100vw - 32px));
+            max-height: min(420px, 70vh);
+            overflow-y: auto;
+            display: none;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .popup-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .popup-word { font-size: 1.4rem; font-weight: bold; color: #667eea; }
+        .popup-close {
+            width: 32px; height: 32px;
+            border-radius: 50%; border: none;
+            background: #f0f0f0; font-size: 1.2rem; cursor: pointer; flex-shrink: 0;
+        }
+        .popup-close:hover { background: #e0e0e0; }
+        .phonetic { font-size: 1rem; color: #555; margin-bottom: 10px; font-family: 'Courier New', monospace; }
+        .meanings { margin-bottom: 12px; max-height: 180px; overflow-y: auto; }
+        .meaning-group { margin-bottom: 10px; }
+        .pos-tag {
+            display: inline-block;
+            background: #eef1ff;
+            color: #667eea;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .def-item { font-size: 0.88rem; color: #333; line-height: 1.5; margin-bottom: 4px; padding-left: 8px; border-left: 2px solid #e0e0e0; }
+        .def-example { font-size: 0.8rem; color: #888; font-style: italic; margin-top: 2px; }
+        .popup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .audio-btn, .vocab-btn {
+            display: flex; align-items: center; gap: 6px;
+            padding: 9px 16px;
+            border: none; border-radius: 22px;
+            cursor: pointer; font-size: 0.9rem;
+            transition: transform 0.2s;
+        }
+        .audio-btn { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .vocab-btn { background: #f0f0f0; color: #333; }
+        .vocab-btn.added { background: #d4edda; color: #155724; }
+        .audio-btn:hover, .vocab-btn:hover { transform: scale(1.03); }
+        .audio-btn.playing { animation: pulse 0.8s infinite alternate; }
+        @keyframes pulse { from { opacity: 1; } to { opacity: 0.7; } }
+
+        /* Vocab sidebar */
+        .vocab-sidebar {
+            width: 280px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: none;
+            flex-shrink: 0;
+            max-height: calc(100vh - 120px);
+            overflow: hidden;
+            flex-direction: column;
+        }
+        .vocab-sidebar.open { display: flex; }
+        .vocab-header {
+            padding: 16px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .vocab-header h3 { font-size: 1rem; color: #333; }
+        .vocab-count { font-size: 0.8rem; color: #888; }
+        .vocab-clear {
+            background: none; border: none;
+            color: #ff6b6b; cursor: pointer; font-size: 0.8rem;
+        }
+        .vocab-list { overflow-y: auto; flex: 1; padding: 8px; }
+        .vocab-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .vocab-item:hover { background: #f8f9ff; }
+        .vocab-item-word { font-weight: 600; color: #667eea; font-size: 0.95rem; }
+        .vocab-item-phonetic { font-size: 0.78rem; color: #888; font-family: monospace; }
+        .vocab-item-def { font-size: 0.8rem; color: #555; margin-top: 3px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vocab-empty { text-align: center; color: #aaa; padding: 32px 16px; font-size: 0.9rem; }
+
+        /* Sidebar tabs */
+        .sidebar-tabs { display: flex; border-bottom: 1px solid #eee; }
+        .sidebar-tab {
+            flex: 1; padding: 10px; border: none; background: none;
+            cursor: pointer; font-size: 0.85rem; color: #888;
+            border-bottom: 2px solid transparent; transition: color 0.15s;
+        }
+        .sidebar-tab.active { color: #667eea; border-bottom-color: #667eea; font-weight: 600; }
+        .sidebar-panel { display: none; overflow-y: auto; flex: 1; padding: 8px; min-height: 0; }
+        .sidebar-panel.active { display: flex; flex-direction: column; }
+        #historyList { overflow-y: auto; flex: 1; }
+        .history-item {
+            padding: 8px 12px; border-radius: 8px; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #f5f5f5; transition: background 0.15s;
+        }
+        .history-item:hover { background: #f8f9ff; }
+        .history-word { font-weight: 600; color: #667eea; font-size: 0.9rem; }
+        .history-time { font-size: 0.72rem; color: #bbb; }
+        .sidebar-actions { padding: 8px 12px; border-top: 1px solid #eee; display: flex; gap: 6px; }
+        .sidebar-action-btn {
+            flex: 1; padding: 7px; border: 1px solid #ddd; border-radius: 6px;
+            background: white; cursor: pointer; font-size: 0.78rem; color: #555;
+        }
+        .sidebar-action-btn:hover { background: #f5f5f5; }
+
+        /* Hover tooltip */
+        .hover-tooltip {
+            position: fixed; background: rgba(30,30,40,0.92); color: white;
+            padding: 6px 12px; border-radius: 8px; font-size: 0.85rem;
+            pointer-events: none; z-index: 900; display: none;
+            max-width: 220px; box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+        .hover-tooltip .ht-word { font-weight: 600; }
+        .hover-tooltip .ht-ph { font-size: 0.75rem; opacity: 0.8; font-family: monospace; }
+
+        /* Toast */
+        .toast-container {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 2000; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+        }
+        .toast {
+            background: rgba(30,30,40,0.9); color: white;
+            padding: 10px 20px; border-radius: 24px; font-size: 0.88rem;
+            animation: toastIn 0.25s ease; white-space: nowrap;
+        }
+        .toast.success { background: rgba(40,120,60,0.92); }
+        .toast.warn { background: rgba(180,100,20,0.92); }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Settings modal */
+        .settings-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+            z-index: 1100; display: none;
+        }
+        .settings-backdrop.show { display: block; }
+        .settings-panel {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: white; border-radius: 14px; padding: 24px;
+            z-index: 1101; width: min(360px, calc(100vw - 32px)); display: none;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+        }
+        .settings-panel.show { display: block; }
+        .settings-panel h3 { margin-bottom: 16px; color: #333; }
+        .setting-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem;
+        }
+        .setting-row label { cursor: pointer; flex: 1; }
+        .setting-row input[type=checkbox] { width: 18px; height: 18px; accent-color: #667eea; }
+
+        /* Progress & loading */
+        .read-progress {
+            height: 3px; background: #eee; border-radius: 2px;
+            margin-bottom: 10px; overflow: hidden;
+        }
+        .read-progress-fill {
+            height: 100%; background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+        .page-loading {
+            position: absolute; inset: 0; background: rgba(255,255,255,0.6);
+            display: none; align-items: center; justify-content: center;
+            z-index: 5; border-radius: 8px;
+        }
+        .page-loading.show { display: flex; }
+        .spinner {
+            width: 32px; height: 32px; border: 3px solid #e0e0e0;
+            border-top-color: #667eea; border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        body.fullscreen-mode { padding: 0; }
+        body.fullscreen-mode .header, body.fullscreen-mode .hint { display: none; }
+        body.fullscreen-mode .main-layout { gap: 0; }
+        body.fullscreen-mode .vocab-sidebar { border-radius: 0; max-height: 100vh; }
+        body.fullscreen-mode .pdf-container { border-radius: 0; min-height: 100vh; }
+        body.fullscreen-mode .pdf-wrapper { max-height: calc(100vh - 100px); }
+
+        .copy-btn {
+            padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px;
+            background: white; cursor: pointer; font-size: 0.8rem; color: #555;
+        }
+        .copy-btn:hover { background: #f5f5f5; }
+
+        .loading { text-align: center; padding: 20px; color: #667eea; }
+        .error-message { color: #ff6b6b; margin-top: 8px; font-size: 0.85rem; }
+        .hint {
+            text-align: center; color: white;
+            margin-top: 16px; font-size: 0.85rem; opacity: 0.85;
+        }
+        .kbd-hint { opacity: 0.7; font-size: 0.8rem; }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .main-layout { flex-direction: column; }
+            .vocab-sidebar {
+                width: 100%;
+                max-height: 40vh;
+                order: 2;
+            }
+            .vocab-sidebar.open { display: flex; }
+            .pdf-wrapper { max-height: 55vh; }
+            .word-span { min-height: 22px; min-width: 12px; }
+            .toolbar-btn, .toolbar-btn-secondary { padding: 10px 12px; font-size: 0.85rem; }
+            .zoom-btn { width: 40px; height: 40px; }
+            .popup.mobile-sheet {
+                left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important;
+                width: 100%; max-width: 100%;
+                border-radius: 16px 16px 0 0;
+                max-height: 65vh;
+                animation: slideUp 0.25s ease;
+            }
+            @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+            }
+            .popup-backdrop.show { display: block; }
+        }
+        @media (min-width: 769px) {
+            .vocab-sidebar { display: flex; }
+            .vocab-toggle-btn { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 PDF单词学习助手</h1>
+            <p>上传英语练习册或课本，点击单词查看释义、音标并听发音</p>
+        </div>
+
+        <div class="main-layout">
+            <div class="main-content">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📄</div>
+                    <button class="upload-btn" id="uploadBtn">选择 PDF 文件</button>
+                    <p class="upload-hint">或将 PDF 拖拽到此处</p>
+                    <input type="file" id="fileInput" accept="application/pdf">
+                    <p class="error-message" id="uploadError"></p>
+                </div>
+
+                <div class="pdf-container" id="pdfContainer">
+                    <div class="scan-warning" id="scanWarning">
+                        <div id="scanWarningText">⚠️ 当前页未检测到可点选文字，该 PDF 可能是扫描版。</div>
+                        <button class="ocr-btn" id="enableOcrBtn">🔍 启用 OCR 文字识别（首次较慢，需下载识别引擎）</button>
+                    </div>
+                    <div class="pdf-toolbar">
+                        <button class="toolbar-btn-secondary" id="changeFileBtn">换文件</button>
+                        <button class="toolbar-btn" id="prevBtn" disabled>上一页</button>
+                        <div class="page-jump">
+                            <input type="number" id="pageInput" min="1" value="1" aria-label="页码">
+                            <span class="page-info" id="pageTotal">/ 1</span>
+                        </div>
+                        <button class="toolbar-btn" id="nextBtn" disabled>下一页</button>
+                        <button class="toolbar-btn-secondary" id="fitWidthBtn">适应宽度</button>
+                        <button class="toolbar-btn-secondary" id="fullscreenBtn" title="全屏阅读">⛶</button>
+                        <button class="toolbar-btn-secondary" id="settingsBtn" title="设置">⚙️</button>
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" id="zoomOutBtn" aria-label="缩小">−</button>
+                            <span id="zoomValue">100%</span>
+                            <button class="zoom-btn" id="zoomInBtn" aria-label="放大">+</button>
+                        </div>
+                        <button class="toolbar-btn-secondary vocab-toggle-btn" id="vocabToggleBtn">生词本</button>
+                    </div>
+                    <div class="read-progress" id="readProgress"><div class="read-progress-fill" id="readProgressFill"></div></div>
+                    <div class="pdf-wrapper" id="pdfWrapper">
+                        <div class="pdf-page" id="pdfPage">
+                            <canvas id="pdfCanvas"></canvas>
+                            <div class="page-loading" id="pageLoading"><div class="spinner"></div></div>
+                            <div id="textLayer" class="textLayer"></div>
+                            <div id="wordOverlay"></div>
+                            <div class="ocr-progress" id="ocrProgress">
+                                <div class="ocr-progress-text" id="ocrProgressText">正在识别文字...</div>
+                                <div class="ocr-progress-bar"><div class="ocr-progress-fill" id="ocrProgressFill"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="vocab-sidebar" id="vocabSidebar">
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab active" data-tab="vocab">📖 生词本</button>
+                    <button class="sidebar-tab" data-tab="history">🕐 查词历史</button>
+                </div>
+                <div class="sidebar-panel active" id="vocabPanel">
+                    <div class="vocab-header" style="border:none;padding:12px 16px 8px">
+                        <div>
+                            <div class="vocab-count" id="vocabCount">0 个单词</div>
+                        </div>
+                        <button class="vocab-clear" id="vocabClearBtn">清空</button>
+                    </div>
+                    <div class="vocab-list" id="vocabList" style="padding-top:0">
+                        <div class="vocab-empty">点击单词后按「加入生词本」保存</div>
+                    </div>
+                    <div class="sidebar-actions">
+                        <button class="sidebar-action-btn" id="exportVocabBtn">📥 导出</button>
+                    </div>
+                </div>
+                <div class="sidebar-panel" id="historyPanel">
+                    <div class="vocab-header" style="border:none;padding:12px 16px 8px">
+                        <div class="vocab-count" id="historyCount">本次 0 个</div>
+                        <button class="vocab-clear" id="historyClearBtn">清空</button>
+                    </div>
+                    <div id="historyList"><div class="vocab-empty">查过的单词会显示在这里</div></div>
+                </div>
+            </aside>
+        </div>
+
+        <div class="popup-backdrop" id="popupBackdrop"></div>
+        <div class="popup" id="wordPopup" role="dialog" aria-label="单词详情">
+            <div class="popup-header">
+                <span class="popup-word" id="popupWord"></span>
+                <div style="display:flex;gap:6px;align-items:center">
+                    <button class="copy-btn" id="copyWordBtn" title="复制单词">复制</button>
+                    <button class="popup-close" id="closePopupBtn" aria-label="关闭">×</button>
+                </div>
+            </div>
+            <div class="phonetic" id="popupPhonetic"></div>
+            <div class="meanings" id="popupMeanings"></div>
+            <div class="popup-actions">
+                <button class="audio-btn" id="playAudioBtn"><span id="audioIcon">🔊</span> 播放发音</button>
+                <button class="vocab-btn" id="addVocabBtn">⭐ 加入生词本</button>
+            </div>
+            <p class="error-message" id="lookupError"></p>
+        </div>
+
+        <div class="hint">
+            💡 悬停预览 · 双击快速加入生词本 · 扫描版可启用 OCR<br>
+            <span class="kbd-hint">← → 翻页 · + − 缩放 · Esc 关闭 · F 全屏 · Ctrl+滚轮缩放</span>
+        </div>
+    </div>
+
+    <div class="hover-tooltip" id="hoverTooltip"></div>
+    <div class="toast-container" id="toastContainer"></div>
+    <div class="settings-backdrop" id="settingsBackdrop"></div>
+    <div class="settings-panel" id="settingsPanel">
+        <h3>⚙️ 设置</h3>
+        <div class="setting-row">
+            <label for="settingAutoPlay">查词后自动发音</label>
+            <input type="checkbox" id="settingAutoPlay" checked>
+        </div>
+        <div class="setting-row">
+            <label for="settingHoverPreview">悬停预览（桌面端）</label>
+            <input type="checkbox" id="settingHoverPreview" checked>
+        </div>
+        <div class="setting-row">
+            <label for="settingDoubleClickVocab">双击单词加入生词本</label>
+            <input type="checkbox" id="settingDoubleClickVocab" checked>
+        </div>
+        <div class="setting-row">
+            <label for="settingOcrAuto">扫描版自动启用 OCR</label>
+            <input type="checkbox" id="settingOcrAuto">
+        </div>
+        <div class="setting-row" style="border:none">
+            <label for="settingRememberPage">记住阅读进度</label>
+            <input type="checkbox" id="settingRememberPage" checked>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/build/pdf.worker.mjs';
+
+        const STORAGE_KEY = 'pdfWordAssistant_vocab';
+        const SETTINGS_KEY = 'pdfWordAssistant_settings';
+        const SESSION_KEY = 'pdfWordAssistant_session';
+        const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let currentFileMeta = null;
+        let zoom = 1;
+        let fitWidthMode = false;
+        let activeWordSpan = null;
+        let currentLookup = { word: '', data: null };
+        let currentAudio = null;
+        let ocrMode = false;
+        let ocrCache = new Map();
+        let ocrWorker = null;
+        let ocrWorkerPromise = null;
+        let lookupHistory = [];
+        let hoverTimer = null;
+        let touchStartX = 0;
+        const OCR_RENDER_SCALE = 2;
+
+        const settings = loadSettings();
+        applySettingsUI();
+
+        function loadSettings() {
+            try {
+                return { autoPlay: true, hoverPreview: true, doubleClickVocab: true, ocrAuto: false, rememberPage: true,
+                    ...JSON.parse(localStorage.getItem(SETTINGS_KEY)) };
+            } catch { return { autoPlay: true, hoverPreview: true, doubleClickVocab: true, ocrAuto: false, rememberPage: true }; }
+        }
+        function saveSettings() {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        }
+        function applySettingsUI() {
+            document.getElementById('settingAutoPlay').checked = settings.autoPlay;
+            document.getElementById('settingHoverPreview').checked = settings.hoverPreview;
+            document.getElementById('settingDoubleClickVocab').checked = settings.doubleClickVocab;
+            document.getElementById('settingOcrAuto').checked = settings.ocrAuto;
+            document.getElementById('settingRememberPage').checked = settings.rememberPage;
+        }
+
+        function showToast(msg, type = '') {
+            const container = document.getElementById('toastContainer');
+            const t = document.createElement('div');
+            t.className = 'toast' + (type ? ' ' + type : '');
+            t.textContent = msg;
+            container.appendChild(t);
+            setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2200);
+        }
+
+        function addHistory(word, phonetic) {
+            lookupHistory = lookupHistory.filter(h => h.word.toLowerCase() !== word.toLowerCase());
+            lookupHistory.unshift({ word, phonetic: phonetic || '', time: Date.now() });
+            if (lookupHistory.length > 50) lookupHistory.pop();
+            renderHistory();
+        }
+        function renderHistory() {
+            document.getElementById('historyCount').textContent = `本次 ${lookupHistory.length} 个`;
+            const el = document.getElementById('historyList');
+            if (!lookupHistory.length) {
+                el.innerHTML = '<div class="vocab-empty">查过的单词会显示在这里</div>';
+                return;
+            }
+            el.innerHTML = lookupHistory.map(h => `
+                <div class="history-item" data-word="${h.word}">
+                    <div><div class="history-word">${h.word}</div>
+                    <div class="history-time">${h.phonetic || ''}</div></div>
+                    <div class="history-time">${formatTime(h.time)}</div>
+                </div>
+            `).join('');
+            el.querySelectorAll('.history-item').forEach(item => {
+                item.onclick = () => showVocabItem(item.dataset.word);
+            });
+        }
+        function formatTime(ts) {
+            const d = new Date(ts);
+            return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+        }
+
+        function saveSession() {
+            if (!settings.rememberPage || !currentFileMeta) return;
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+                name: currentFileMeta.name, size: currentFileMeta.size,
+                page: currentPage, zoom, ocrMode
+            }));
+        }
+        function tryRestoreSession(file) {
+            if (!settings.rememberPage) return null;
+            try {
+                const s = JSON.parse(sessionStorage.getItem(SESSION_KEY));
+                if (s && s.name === file.name && s.size === file.size) return s;
+            } catch {}
+            return null;
+        }
+
+        function updateReadProgress() {
+            if (!pdfDoc) return;
+            const pct = (currentPage / pdfDoc.numPages) * 100;
+            document.getElementById('readProgressFill').style.width = pct + '%';
+        }
+
+        const canvas = document.getElementById('pdfCanvas');
+        const ctx = canvas.getContext('2d');
+        const textLayerDiv = document.getElementById('textLayer');
+        const wordOverlay = document.getElementById('wordOverlay');
+        const wordCache = new Map();
+
+        // ── Vocabulary book ──
+        function loadVocab() {
+            try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+            catch { return []; }
+        }
+        function saveVocab(list) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+        }
+        function isInVocab(word) {
+            return loadVocab().some(v => v.word.toLowerCase() === word.toLowerCase());
+        }
+        function addToVocab(word, data) {
+            const list = loadVocab();
+            if (list.some(v => v.word.toLowerCase() === word.toLowerCase())) return false;
+            list.unshift({
+                word,
+                phonetic: extractPhonetic(data),
+                summary: extractSummary(data),
+                addedAt: Date.now()
+            });
+            saveVocab(list);
+            renderVocabList();
+            showToast(`「${word}」已加入生词本`, 'success');
+            return true;
+        }
+        function removeFromVocab(word) {
+            saveVocab(loadVocab().filter(v => v.word.toLowerCase() !== word.toLowerCase()));
+            renderVocabList();
+        }
+        function renderVocabList() {
+            const list = loadVocab();
+            const container = document.getElementById('vocabList');
+            document.getElementById('vocabCount').textContent = `${list.length} 个单词`;
+            if (!list.length) {
+                container.innerHTML = '<div class="vocab-empty">点击单词后按「加入生词本」保存</div>';
+                return;
+            }
+            container.innerHTML = list.map(v => `
+                <div class="vocab-item" data-word="${v.word}">
+                    <div class="vocab-item-word">${v.word}</div>
+                    <div class="vocab-item-phonetic">${v.phonetic || ''}</div>
+                    <div class="vocab-item-def">${v.summary || ''}</div>
+                </div>
+            `).join('');
+            container.querySelectorAll('.vocab-item').forEach(el => {
+                el.onclick = () => showVocabItem(el.dataset.word);
+            });
+        }
+        function showVocabItem(word) {
+            openPopup();
+            if (!isMobile()) {
+                const popup = document.getElementById('wordPopup');
+                popup.style.left = '50%';
+                popup.style.top = '40%';
+                popup.style.transform = 'translate(-50%, -50%)';
+            }
+            document.getElementById('popupWord').textContent = word;
+            document.getElementById('popupPhonetic').textContent = '加载中...';
+            document.getElementById('popupMeanings').innerHTML = '';
+            document.getElementById('lookupError').textContent = '';
+            updateVocabBtn(word);
+            lookupWord(word, settings.autoPlay);
+        }
+        function updateVocabBtn(word) {
+            const btn = document.getElementById('addVocabBtn');
+            if (isInVocab(word)) {
+                btn.textContent = '✓ 已在生词本';
+                btn.classList.add('added');
+            } else {
+                btn.textContent = '⭐ 加入生词本';
+                btn.classList.remove('added');
+            }
+        }
+
+        // ── Dictionary helpers ──
+        function extractPhonetic(data) {
+            if (!data?.[0]) return '';
+            if (data[0].phonetic) return data[0].phonetic;
+            const p = data[0].phonetics?.find(x => x.text);
+            return p?.text || '';
+        }
+        function extractSummary(data) {
+            if (!data?.[0]?.meanings?.length) return '';
+            const m = data[0].meanings[0];
+            const d = m.definitions?.[0]?.definition;
+            return d ? `${m.partOfSpeech || ''} ${d}`.trim() : '';
+        }
+        function renderMeanings(data) {
+            const container = document.getElementById('popupMeanings');
+            if (!data?.[0]?.meanings?.length) {
+                container.innerHTML = '<p style="color:#888;font-size:0.85rem">暂无释义</p>';
+                return;
+            }
+            container.innerHTML = data[0].meanings.slice(0, 4).map(m => {
+                const defs = (m.definitions || []).slice(0, 2).map((d, i) => `
+                    <div class="def-item">
+                        ${i + 1}. ${d.definition}
+                        ${d.example ? `<div class="def-example">"${d.example}"</div>` : ''}
+                    </div>
+                `).join('');
+                return `<div class="meaning-group">
+                    <span class="pos-tag">${m.partOfSpeech || 'unknown'}</span>
+                    ${defs}
+                </div>`;
+            }).join('');
+        }
+
+        // ── PDF loading ──
+        async function loadPDF(file) {
+            if (!file || file.type !== 'application/pdf') {
+                document.getElementById('uploadError').textContent = '请上传 PDF 文件';
+                return;
+            }
+            document.getElementById('uploadError').textContent = '';
+            document.getElementById('uploadArea').style.display = 'none';
+            document.getElementById('pdfContainer').style.display = 'block';
+
+            const wrapper = document.getElementById('pdfWrapper');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading';
+            loadingDiv.textContent = '正在加载 PDF...';
+            wrapper.appendChild(loadingDiv);
+
+            try {
+                currentFileMeta = { name: file.name, size: file.size };
+                const restored = tryRestoreSession(file);
+                currentPage = restored?.page || 1;
+                zoom = restored?.zoom || 1;
+                ocrMode = restored?.ocrMode || false;
+                fitWidthMode = false;
+                ocrCache.clear();
+                await terminateOcrWorker();
+                const arrayBuffer = await file.arrayBuffer();
+                pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                loadingDiv.remove();
+                document.getElementById('pageInput').max = pdfDoc.numPages;
+                if (restored) showToast(`已恢复到第 ${currentPage} 页`, 'success');
+                await renderPage(currentPage);
+                updateToolbar();
+                if (settings.ocrAuto && !ocrMode) {
+                    const page = await pdfDoc.getPage(currentPage);
+                    const tc = await page.getTextContent();
+                    if (!tc.items.some(i => i.str?.trim())) {
+                        await enableOcrMode(false);
+                    }
+                }
+            } catch (err) {
+                loadingDiv.remove();
+                document.getElementById('uploadError').textContent = 'PDF 加载失败：' + err.message;
+                document.getElementById('uploadArea').style.display = 'block';
+                document.getElementById('pdfContainer').style.display = 'none';
+            }
+        }
+
+        function handleFileUpload(e) {
+            loadPDF(e.target.files[0]);
+            e.target.value = '';
+        }
+
+        // ── Drag & drop ──
+        const uploadArea = document.getElementById('uploadArea');
+        ['dragenter', 'dragover'].forEach(ev => {
+            uploadArea.addEventListener(ev, e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+        });
+        ['dragleave', 'drop'].forEach(ev => {
+            uploadArea.addEventListener(ev, e => { e.preventDefault(); uploadArea.classList.remove('drag-over'); });
+        });
+        uploadArea.addEventListener('drop', e => {
+            const file = e.dataTransfer.files[0];
+            if (file) loadPDF(file);
+        });
+
+        // ── Rendering ──
+        async function getScale() {
+            if (!fitWidthMode || !pdfDoc) return zoom;
+            const page = await pdfDoc.getPage(currentPage);
+            const wrapper = document.getElementById('pdfWrapper');
+            const availWidth = wrapper.clientWidth - 24;
+            const baseViewport = page.getViewport({ scale: 1 });
+            return Math.min(Math.max(availWidth / baseViewport.width, 0.5), 3);
+        }
+
+        async function renderPage(pageNum) {
+            if (!pdfDoc) return;
+            closePopup();
+            document.getElementById('pdfWrapper').scrollTop = 0;
+            document.getElementById('pageLoading').classList.add('show');
+
+            try {
+                const scale = await getScale();
+                const page = await pdfDoc.getPage(pageNum);
+                const viewport = page.getViewport({ scale });
+
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                await buildWordOverlay(page, viewport, scale);
+                saveSession();
+                updateReadProgress();
+            } finally {
+                document.getElementById('pageLoading').classList.remove('show');
+            }
+        }
+
+        async function loadTesseract() {
+            if (window.Tesseract?.createWorker) return window.Tesseract;
+            if (window.__tesseractLoading) return window.__tesseractLoading;
+
+            window.__tesseractLoading = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'lib/tesseract.min.js';
+                script.onload = () => {
+                    if (window.Tesseract?.createWorker) {
+                        resolve(window.Tesseract);
+                    } else {
+                        reject(new Error('Tesseract 脚本加载失败'));
+                    }
+                };
+                script.onerror = () => reject(new Error('无法加载 Tesseract 脚本，请确认 lib/tesseract.min.js 存在'));
+                document.head.appendChild(script);
+            });
+
+            try {
+                return await window.__tesseractLoading;
+            } catch (err) {
+                window.__tesseractLoading = null;
+                throw err;
+            }
+        }
+
+        async function getOcrWorker(onProgress) {
+            if (ocrWorker) return ocrWorker;
+            if (!ocrWorkerPromise) {
+                ocrWorkerPromise = (async () => {
+                    const Tesseract = await loadTesseract();
+                    const worker = await Tesseract.createWorker('eng', 1, {
+                        workerPath: new URL('lib/worker.min.js', document.getElementById('appBase').href).href,
+                        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5',
+                        logger: m => {
+                            if (m.status === 'recognizing text' && onProgress) {
+                                onProgress(Math.round((m.progress || 0) * 100));
+                            } else if (m.status === 'loading language traineddata' && onProgress) {
+                                onProgress(Math.round((m.progress || 0) * 50));
+                            }
+                        }
+                    });
+                    ocrWorker = worker;
+                    return worker;
+                })().catch(err => {
+                    ocrWorkerPromise = null;
+                    throw err;
+                });
+            }
+            return ocrWorkerPromise;
+        }
+
+        async function terminateOcrWorker() {
+            if (ocrWorker) {
+                await ocrWorker.terminate();
+                ocrWorker = null;
+                ocrWorkerPromise = null;
+            }
+        }
+
+        function showOcrProgress(text, pct) {
+            document.getElementById('ocrProgress').classList.add('show');
+            document.getElementById('ocrProgressText').textContent = text;
+            document.getElementById('ocrProgressFill').style.width = pct + '%';
+        }
+
+        function hideOcrProgress() {
+            document.getElementById('ocrProgress').classList.remove('show');
+        }
+
+        function updateScanWarning(hasWords, fromOcr = false) {
+            const warn = document.getElementById('scanWarning');
+            const text = document.getElementById('scanWarningText');
+            const btn = document.getElementById('enableOcrBtn');
+            if (hasWords) {
+                if (fromOcr) {
+                    warn.style.display = 'block';
+                    text.innerHTML = '✅ OCR 识别模式已启用 <span class="ocr-badge">扫描版</span>';
+                    btn.style.display = 'none';
+                } else {
+                    warn.style.display = 'none';
+                }
+                return;
+            }
+            warn.style.display = 'block';
+            if (ocrMode) {
+                text.textContent = '⚠️ OCR 未识别到英文单词，请尝试提高缩放后重新识别。';
+                btn.textContent = '🔄 重新识别本页';
+                btn.style.display = 'inline-block';
+            } else {
+                text.textContent = '⚠️ 当前页未检测到可点选文字，该 PDF 可能是扫描版。';
+                btn.textContent = '🔍 启用 OCR 文字识别（首次较慢，需下载识别引擎）';
+                btn.style.display = 'inline-block';
+            }
+            btn.disabled = false;
+        }
+
+        async function runOcrForPage(page) {
+            const cacheKey = `page-${currentPage}`;
+            if (ocrCache.has(cacheKey)) return ocrCache.get(cacheKey);
+
+            showOcrProgress('正在加载 OCR 引擎...', 5);
+            const worker = await getOcrWorker(pct => showOcrProgress(`正在识别第 ${currentPage} 页... ${pct}%`, pct));
+
+            const ocrViewport = page.getViewport({ scale: OCR_RENDER_SCALE });
+            const offscreen = document.createElement('canvas');
+            offscreen.width = ocrViewport.width;
+            offscreen.height = ocrViewport.height;
+            await page.render({ canvasContext: offscreen.getContext('2d'), viewport: ocrViewport }).promise;
+
+            showOcrProgress(`正在识别第 ${currentPage} 页...`, 10);
+            const { data } = await worker.recognize(offscreen);
+            hideOcrProgress();
+
+            const wordPattern = /^[a-zA-Z]+(?:['-][a-zA-Z]+)*$/;
+            const words = data.words
+                .filter(w => w.confidence > 35 && wordPattern.test(w.text.trim()))
+                .map(w => ({
+                    word: w.text.trim(),
+                    x0: w.bbox.x0 / ocrViewport.width,
+                    y0: w.bbox.y0 / ocrViewport.height,
+                    x1: w.bbox.x1 / ocrViewport.width,
+                    y1: w.bbox.y1 / ocrViewport.height,
+                }));
+
+            ocrCache.set(cacheKey, words);
+            return words;
+        }
+
+        function appendWordSpans(words, canvasW, canvasH, fromOcr = false) {
+            words.forEach(({ word, x0, y0, x1, y1, relLeft, relTop, relW, relH }) => {
+                const left = relLeft ?? x0 * canvasW;
+                const top = relTop ?? y0 * canvasH;
+                const width = relW ?? (x1 - x0) * canvasW;
+                const height = relH ?? (y1 - y0) * canvasH;
+                if (width < 2 || height < 2) return;
+
+                const wordSpan = document.createElement('span');
+                wordSpan.className = 'word-span' + (fromOcr ? ' ocr-word' : '');
+                wordSpan.style.left = left + 'px';
+                wordSpan.style.top = top + 'px';
+                wordSpan.style.width = width + 'px';
+                wordSpan.style.height = Math.max(height, isMobile() ? 22 : 14) + 'px';
+                wordSpan.dataset.word = word;
+                wordSpan.title = word + (fromOcr ? ' (OCR)' : '');
+                wordSpan.addEventListener('click', e => { e.stopPropagation(); showWordInfo(word, e); });
+                wordSpan.addEventListener('dblclick', e => {
+                    e.stopPropagation();
+                    if (settings.doubleClickVocab) quickAddVocab(word);
+                });
+                if (settings.hoverPreview && !isMobile()) {
+                    wordSpan.addEventListener('mouseenter', e => startHoverPreview(word, e));
+                    wordSpan.addEventListener('mouseleave', hideHoverPreview);
+                }
+                wordOverlay.appendChild(wordSpan);
+            });
+            return wordOverlay.querySelectorAll('.word-span').length;
+        }
+
+        async function buildWordOverlay(page, viewport, scale) {
+            textLayerDiv.innerHTML = '';
+            wordOverlay.innerHTML = '';
+            textLayerDiv.style.setProperty('--scale-factor', viewport.scale);
+            pdfjsLib.setLayerDimensions(textLayerDiv, viewport);
+
+            const textContent = await page.getTextContent();
+            const hasTextLayer = textContent.items.some(i => i.str?.trim());
+            let wordCount = 0;
+
+            if (hasTextLayer) {
+                const textLayer = new pdfjsLib.TextLayer({
+                    textContentSource: textContent,
+                    container: textLayerDiv,
+                    viewport
+                });
+                await textLayer.render();
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+                const pageEl = document.getElementById('pdfPage');
+                const pageRect = pageEl.getBoundingClientRect();
+                const wordPattern = /[a-zA-Z]+(?:['-][a-zA-Z]+)*/g;
+                const spans = [];
+
+                textLayerDiv.querySelectorAll('span[role="presentation"]').forEach(span => {
+                    const text = span.textContent;
+                    if (!text) return;
+                    const spanRect = span.getBoundingClientRect();
+                    if (spanRect.width === 0 || spanRect.height === 0) return;
+
+                    const relLeft = spanRect.left - pageRect.left;
+                    const relTop = spanRect.top - pageRect.top;
+                    let match;
+                    while ((match = wordPattern.exec(text)) !== null) {
+                        spans.push({
+                            word: match[0],
+                            relLeft: relLeft + spanRect.width * (match.index / text.length),
+                            relTop,
+                            relW: spanRect.width * (match[0].length / text.length),
+                            relH: spanRect.height
+                        });
+                    }
+                });
+                wordCount = appendWordSpans(spans, canvas.width, canvas.height);
+            }
+
+            if (wordCount === 0 && ocrMode) {
+                try {
+                    const ocrWords = await runOcrForPage(page);
+                    wordCount = appendWordSpans(ocrWords, canvas.width, canvas.height, true);
+                    updateScanWarning(wordCount > 0, true);
+                    if (wordCount > 0) showToast(`OCR 识别完成，找到 ${wordCount} 个单词`, 'success');
+                    return;
+                } catch (err) {
+                    hideOcrProgress();
+                    console.error('OCR failed:', err);
+                    document.getElementById('scanWarningText').textContent =
+                        '❌ OCR 识别失败：' + err.message + '，请检查网络后重试。';
+                    document.getElementById('scanWarning').style.display = 'block';
+                    return;
+                }
+            }
+
+            updateScanWarning(wordCount > 0, false);
+            if (wordCount === 0 && !hasTextLayer) {
+                document.getElementById('scanWarning').style.display = 'block';
+            }
+        }
+
+        async function enableOcrMode(forceReocr = false) {
+            ocrMode = true;
+            const btn = document.getElementById('enableOcrBtn');
+            btn.disabled = true;
+            if (forceReocr) ocrCache.delete(`page-${currentPage}`);
+            try {
+                await renderPage(currentPage);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ── Navigation ──
+        function goToPage(num) {
+            const n = Math.max(1, Math.min(num, pdfDoc.numPages));
+            currentPage = n;
+            renderPage(currentPage);
+            updateToolbar();
+        }
+        function prevPage() { if (currentPage > 1) goToPage(currentPage - 1); }
+        function nextPage() { if (pdfDoc && currentPage < pdfDoc.numPages) goToPage(currentPage + 1); }
+
+        function updateToolbar() {
+            if (!pdfDoc) return;
+            document.getElementById('pageInput').value = currentPage;
+            document.getElementById('pageInput').max = pdfDoc.numPages;
+            document.getElementById('pageTotal').textContent = `/ ${pdfDoc.numPages}`;
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = currentPage === pdfDoc.numPages;
+            const displayZoom = fitWidthMode ? '适应宽度' : Math.round(zoom * 100) + '%';
+            document.getElementById('zoomValue').textContent = displayZoom;
+        }
+
+        function zoomIn() {
+            fitWidthMode = false;
+            zoom = Math.min(zoom + 0.2, 3);
+            renderPage(currentPage).then(updateToolbar);
+        }
+        function zoomOut() {
+            fitWidthMode = false;
+            zoom = Math.max(zoom - 0.2, 0.5);
+            renderPage(currentPage).then(updateToolbar);
+        }
+        async function fitWidth() {
+            fitWidthMode = true;
+            await renderPage(currentPage);
+            updateToolbar();
+        }
+
+        // ── Popup & lookup ──
+        function openPopup() {
+            const popup = document.getElementById('wordPopup');
+            popup.style.display = 'block';
+            if (isMobile()) {
+                popup.classList.add('mobile-sheet');
+                document.getElementById('popupBackdrop').classList.add('show');
+            } else {
+                popup.classList.remove('mobile-sheet');
+            }
+        }
+
+        function positionPopup(anchorRect) {
+            const popup = document.getElementById('wordPopup');
+            if (isMobile()) return;
+
+            popup.style.display = 'block';
+            popup.style.transform = '';
+            const pw = popup.offsetWidth;
+            const ph = popup.offsetHeight;
+            const margin = 10;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            let left = anchorRect.left + anchorRect.width / 2 - pw / 2;
+            let top = anchorRect.top - ph - margin;
+
+            if (top < margin) top = anchorRect.bottom + margin;
+            left = Math.max(margin, Math.min(left, vw - pw - margin));
+            top = Math.max(margin, Math.min(top, vh - ph - margin));
+
+            popup.style.left = left + 'px';
+            popup.style.top = top + 'px';
+        }
+
+        async function showWordInfo(word, event) {
+            if (activeWordSpan) activeWordSpan.classList.remove('active');
+            activeWordSpan = event.target;
+            activeWordSpan.classList.add('active');
+
+            currentLookup = { word, data: null };
+            document.getElementById('popupWord').textContent = word;
+            document.getElementById('popupPhonetic').textContent = '加载中...';
+            document.getElementById('popupMeanings').innerHTML = '';
+            document.getElementById('lookupError').textContent = '';
+            updateVocabBtn(word);
+
+            openPopup();
+            positionPopup(event.target.getBoundingClientRect());
+
+            await lookupWord(word, settings.autoPlay);
+        }
+
+        async function quickAddVocab(word) {
+            let data = wordCache.get(word);
+            if (!data) {
+                try {
+                    const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`);
+                    if (resp.ok) { data = await resp.json(); wordCache.set(word, data); }
+                } catch {}
+            }
+            if (data && addToVocab(word, data)) {
+                updateVocabBtn(word);
+            } else if (isInVocab(word)) {
+                showToast(`「${word}」已在生词本中`);
+            }
+        }
+
+        function startHoverPreview(word, e) {
+            clearTimeout(hoverTimer);
+            hoverTimer = setTimeout(async () => {
+                const tip = document.getElementById('hoverTooltip');
+                tip.style.display = 'block';
+                tip.innerHTML = `<div class="ht-word">${word}</div><div class="ht-ph">加载中...</div>`;
+                const rect = e.target.getBoundingClientRect();
+                tip.style.left = Math.min(rect.left, window.innerWidth - 230) + 'px';
+                tip.style.top = (rect.top - tip.offsetHeight - 6) + 'px';
+
+                let data = wordCache.get(word);
+                if (!data) {
+                    try {
+                        const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`);
+                        if (resp.ok) { data = await resp.json(); wordCache.set(word, data); }
+                    } catch {}
+                }
+                const ph = data ? extractPhonetic(data) : '';
+                const summary = data ? extractSummary(data) : '';
+                tip.innerHTML = `<div class="ht-word">${word}</div>
+                    ${ph ? `<div class="ht-ph">${ph}</div>` : ''}
+                    ${summary ? `<div class="ht-ph" style="margin-top:3px;font-style:italic">${summary.slice(0,60)}</div>` : ''}`;
+            }, 400);
+        }
+        function hideHoverPreview() {
+            clearTimeout(hoverTimer);
+            document.getElementById('hoverTooltip').style.display = 'none';
+        }
+
+        async function lookupWord(word, autoPlay = false) {
+            let data = wordCache.get(word);
+            if (!data) {
+                try {
+                    const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`);
+                    if (!resp.ok) throw new Error('not found');
+                    data = await resp.json();
+                    wordCache.set(word, data);
+                } catch {
+                    document.getElementById('popupPhonetic').textContent = '暂无音标';
+                    document.getElementById('popupMeanings').innerHTML = '';
+                    document.getElementById('lookupError').textContent = '词典中未找到，将使用浏览器朗读';
+                    currentLookup = { word, data: null };
+                    addHistory(word, '');
+                    if (autoPlay) playAudio();
+                    return;
+                }
+            }
+            currentLookup = { word, data };
+            displayWordData(data);
+            addHistory(word, extractPhonetic(data));
+            if (autoPlay) playAudio();
+        }
+
+        function displayWordData(data) {
+            const ph = extractPhonetic(data);
+            document.getElementById('popupPhonetic').textContent = ph ? '音标: ' + ph : '暂无音标';
+            renderMeanings(data);
+        }
+
+        function playAudio() {
+            const btn = document.getElementById('playAudioBtn');
+            btn.classList.add('playing');
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+
+            const word = currentLookup.word;
+            const data = currentLookup.data;
+
+            if (data?.[0]?.phonetics) {
+                const url = data[0].phonetics.find(p => p.audio)?.audio;
+                if (url) {
+                    currentAudio = new Audio(url);
+                    currentAudio.onended = () => btn.classList.remove('playing');
+                    currentAudio.play().catch(() => { btn.classList.remove('playing'); fallbackSpeech(word); });
+                    return;
+                }
+            }
+            fallbackSpeech(word);
+            btn.classList.remove('playing');
+        }
+
+        function fallbackSpeech(word) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(word);
+                u.lang = 'en-US';
+                window.speechSynthesis.speak(u);
+            }
+        }
+
+        function closePopup() {
+            document.getElementById('wordPopup').style.display = 'none';
+            document.getElementById('popupBackdrop').classList.remove('show');
+            if (activeWordSpan) { activeWordSpan.classList.remove('active'); activeWordSpan = null; }
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+            document.getElementById('playAudioBtn').classList.remove('playing');
+        }
+
+        function toggleFullscreen() {
+            document.body.classList.toggle('fullscreen-mode');
+            const btn = document.getElementById('fullscreenBtn');
+            btn.textContent = document.body.classList.contains('fullscreen-mode') ? '✕' : '⛶';
+            if (fitWidthMode && pdfDoc) renderPage(currentPage);
+        }
+
+        function openSettings() {
+            document.getElementById('settingsBackdrop').classList.add('show');
+            document.getElementById('settingsPanel').classList.add('show');
+        }
+        function closeSettings() {
+            document.getElementById('settingsBackdrop').classList.remove('show');
+            document.getElementById('settingsPanel').classList.remove('show');
+        }
+
+        function exportVocab() {
+            const list = loadVocab();
+            if (!list.length) { showToast('生词本为空', 'warn'); return; }
+            const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `生词本_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            showToast(`已导出 ${list.length} 个单词`, 'success');
+        }
+
+        async function copyWord() {
+            const word = currentLookup.word;
+            if (!word) return;
+            try {
+                await navigator.clipboard.writeText(word);
+                showToast(`已复制「${word}」`, 'success');
+            } catch { showToast('复制失败', 'warn'); }
+        }
+
+        function resetToUpload() {
+            document.body.classList.remove('fullscreen-mode');
+            document.getElementById('fullscreenBtn').textContent = '⛶';
+            currentFileMeta = null;
+            lookupHistory = [];
+            renderHistory();
+            pdfDoc = null;
+            currentPage = 1;
+            zoom = 1;
+            fitWidthMode = false;
+            ocrMode = false;
+            ocrCache.clear();
+            terminateOcrWorker();
+            closePopup();
+            document.getElementById('pdfContainer').style.display = 'none';
+            document.getElementById('uploadArea').style.display = 'block';
+            document.getElementById('scanWarning').style.display = 'none';
+        }
+
+        // ── Keyboard shortcuts ──
+        document.addEventListener('keydown', e => {
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') {
+                if (e.key === 'Enter' && e.target.id === 'pageInput') {
+                    goToPage(parseInt(e.target.value, 10));
+                }
+                return;
+            }
+            if (e.key === 'Escape') { closePopup(); closeSettings(); return; }
+            if (e.key === 'f' || e.key === 'F') { if (pdfDoc) { e.preventDefault(); toggleFullscreen(); } return; }
+            if (!pdfDoc) return;
+            if (e.key === 'ArrowLeft') { e.preventDefault(); prevPage(); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); nextPage(); }
+            if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomIn(); }
+            if (e.key === '-') { e.preventDefault(); zoomOut(); }
+        });
+
+        document.getElementById('pdfWrapper').addEventListener('wheel', e => {
+            if (e.ctrlKey && pdfDoc) {
+                e.preventDefault();
+                if (e.deltaY < 0) zoomIn(); else zoomOut();
+            }
+        }, { passive: false });
+
+        // Mobile swipe
+        const pdfWrapper = document.getElementById('pdfWrapper');
+        pdfWrapper.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].clientX; }, { passive: true });
+        pdfWrapper.addEventListener('touchend', e => {
+            if (!pdfDoc) return;
+            const dx = e.changedTouches[0].clientX - touchStartX;
+            if (Math.abs(dx) > 60) { dx < 0 ? nextPage() : prevPage(); }
+        }, { passive: true });
+
+        // Sidebar tabs
+        document.querySelectorAll('.sidebar-tab').forEach(tab => {
+            tab.onclick = () => {
+                document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.sidebar-panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab + 'Panel').classList.add('active');
+            };
+        });
+
+        // Settings
+        ['settingAutoPlay','settingHoverPreview','settingDoubleClickVocab','settingOcrAuto','settingRememberPage'].forEach(id => {
+            document.getElementById(id).addEventListener('change', e => {
+                const key = id.replace('setting', '');
+                settings[key.charAt(0).toLowerCase() + key.slice(1)] = e.target.checked;
+                saveSettings();
+                showToast('设置已保存', 'success');
+            });
+        });
+        document.getElementById('settingsBtn').onclick = openSettings;
+        document.getElementById('settingsBackdrop').onclick = closeSettings;
+        document.getElementById('fullscreenBtn').onclick = toggleFullscreen;
+        document.getElementById('copyWordBtn').onclick = copyWord;
+        document.getElementById('exportVocabBtn').onclick = exportVocab;
+        document.getElementById('historyClearBtn').onclick = () => { lookupHistory = []; renderHistory(); showToast('历史已清空'); };
+
+        // ── Event bindings ──
+        document.addEventListener('click', e => {
+            const popup = document.getElementById('wordPopup');
+            if (popup.style.display === 'block' &&
+                !popup.contains(e.target) &&
+                !e.target.classList.contains('word-span') &&
+                !e.target.closest('.vocab-item')) {
+                closePopup();
+            }
+        });
+        document.getElementById('popupBackdrop').addEventListener('click', closePopup);
+
+        document.getElementById('enableOcrBtn').onclick = () => enableOcrMode(ocrMode);
+        document.getElementById('uploadBtn').onclick = () => document.getElementById('fileInput').click();
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        document.getElementById('changeFileBtn').onclick = resetToUpload;
+        document.getElementById('prevBtn').onclick = prevPage;
+        document.getElementById('nextBtn').onclick = nextPage;
+        document.getElementById('pageInput').addEventListener('change', e => goToPage(parseInt(e.target.value, 10)));
+        document.getElementById('zoomInBtn').onclick = zoomIn;
+        document.getElementById('zoomOutBtn').onclick = zoomOut;
+        document.getElementById('fitWidthBtn').onclick = fitWidth;
+        document.getElementById('closePopupBtn').onclick = closePopup;
+        document.getElementById('playAudioBtn').onclick = playAudio;
+        document.getElementById('addVocabBtn').onclick = () => {
+            const { word, data } = currentLookup;
+            if (!word) return;
+            if (isInVocab(word)) {
+                removeFromVocab(word);
+                showToast(`「${word}」已从生词本移除`);
+            } else if (data) {
+                addToVocab(word, data);
+            }
+            updateVocabBtn(word);
+        };
+        document.getElementById('vocabClearBtn').onclick = () => {
+            if (confirm('确定清空生词本？')) { saveVocab([]); renderVocabList(); }
+        };
+        document.getElementById('vocabToggleBtn').onclick = () => {
+            document.getElementById('vocabSidebar').classList.toggle('open');
+        };
+
+        window.addEventListener('resize', () => {
+            if (fitWidthMode && pdfDoc) renderPage(currentPage).then(updateToolbar);
+        });
+
+        renderVocabList();
+        renderHistory();
+    </script>
+</body>
+</html>
