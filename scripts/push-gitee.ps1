@@ -10,7 +10,8 @@ Set-Location (Split-Path $PSScriptRoot -Parent)
 $remoteUrl = "https://gitee.com/$GiteeUser/$Repo.git"
 Write-Host ">>> 目标仓库: $remoteUrl"
 
-git remote remove gitee 2>$null
+git remote get-url gitee 2>$null | Out-Null
+if ($LASTEXITCODE -eq 0) { git remote remove gitee }
 git remote add gitee $remoteUrl
 git push -u gitee main
 
