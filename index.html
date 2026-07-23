@@ -458,21 +458,197 @@
             .vocab-sidebar { display: flex; }
             .vocab-toggle-btn { display: none; }
         }
+
+        /* Top bar & library */
+        .top-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .admin-btn, .admin-btn-logged {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.88rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .admin-btn {
+            background: rgba(255,255,255,0.95);
+            color: #667eea;
+            font-weight: 600;
+        }
+        .admin-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .admin-btn-logged {
+            background: rgba(40,167,69,0.95);
+            color: white;
+        }
+        .admin-btn-logout {
+            padding: 6px 12px;
+            border: 1px solid rgba(255,255,255,0.6);
+            border-radius: 14px;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .library-section {
+            background: white;
+            border-radius: 16px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .library-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .library-header h2 { font-size: 1.15rem; color: #333; }
+        .library-upload-btn {
+            padding: 8px 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .library-upload-btn:hover { opacity: 0.92; }
+        .library-list { display: flex; flex-direction: column; gap: 8px; }
+        .library-empty { text-align: center; color: #aaa; padding: 24px; font-size: 0.9rem; }
+        .library-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.15s;
+            border: 1px solid transparent;
+        }
+        .library-item:hover {
+            background: #eef1ff;
+            border-color: #667eea33;
+            transform: translateX(2px);
+        }
+        .library-item-icon { font-size: 1.6rem; flex-shrink: 0; }
+        .library-item-info { flex: 1; min-width: 0; }
+        .library-item-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.95rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .library-item-meta { font-size: 0.78rem; color: #888; margin-top: 3px; }
+        .library-item-progress {
+            font-size: 0.75rem;
+            color: #667eea;
+            background: #eef1ff;
+            padding: 3px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        .library-item-delete {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 8px;
+            background: #ffe0e0;
+            color: #d63031;
+            cursor: pointer;
+            font-size: 0.78rem;
+            flex-shrink: 0;
+        }
+        .library-item-delete:hover { background: #ffcaca; }
+
+        .login-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1200;
+            display: none;
+        }
+        .login-backdrop.show { display: block; }
+        .login-panel {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 14px;
+            padding: 28px;
+            z-index: 1201;
+            width: min(360px, calc(100vw - 32px));
+            display: none;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+        }
+        .login-panel.show { display: block; }
+        .login-panel h3 { margin-bottom: 18px; color: #333; text-align: center; }
+        .login-field { margin-bottom: 14px; }
+        .login-field label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 6px; }
+        .login-field input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+        .login-field input:focus { outline: none; border-color: #667eea; }
+        .login-submit {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 6px;
+        }
+        .login-submit:hover { opacity: 0.92; }
+        .login-error { color: #ff6b6b; font-size: 0.85rem; margin-top: 10px; text-align: center; min-height: 1.2em; }
+        #libraryInput { display: none; }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="top-bar">
+            <button class="admin-btn" id="adminLoginBtn">🔐 管理员登录</button>
+            <div id="adminLoggedBar" style="display:none;align-items:center;gap:8px">
+                <span class="admin-btn-logged" id="adminBadge">✓ 管理员</span>
+                <button class="admin-btn-logout" id="adminLogoutBtn">退出</button>
+            </div>
+        </div>
+
         <div class="header">
             <h1>📚 PDF单词学习助手</h1>
             <p>上传英语练习册或课本，点击单词查看释义、音标并听发音</p>
             <p style="font-size:0.85rem;margin-top:6px;opacity:0.85">
-                在线访问：<a href="https://pdf-word-helper.pages.dev" style="color:#fff;text-decoration:underline" target="_blank" id="cfLink">Cloudflare 镜像</a>
+                在线访问：<a href="https://pdf-word-helper.2836208173.workers.dev/" style="color:#fff;text-decoration:underline" target="_blank">Cloudflare 镜像</a>
                 · <a href="https://jintianlei.github.io/pdf-word-helper/" style="color:#fff;text-decoration:underline" target="_blank">GitHub Pages</a>
             </p>
         </div>
 
         <div class="main-layout">
             <div class="main-content">
+                <section class="library-section" id="librarySection">
+                    <div class="library-header">
+                        <h2>📂 共享 PDF 书库</h2>
+                        <button class="library-upload-btn" id="libraryUploadBtn">⬆ 上传 PDF</button>
+                    </div>
+                    <div class="library-list" id="libraryList">
+                        <div class="library-empty">加载中...</div>
+                    </div>
+                    <input type="file" id="libraryInput" accept="application/pdf">
+                </section>
+
                 <div class="upload-area" id="uploadArea">
                     <div class="upload-icon">📄</div>
                     <button class="upload-btn" id="uploadBtn">选择 PDF 文件</button>
@@ -575,6 +751,21 @@
 
     <div class="hover-tooltip" id="hoverTooltip"></div>
     <div class="toast-container" id="toastContainer"></div>
+    <div class="login-backdrop" id="loginBackdrop"></div>
+    <div class="login-panel" id="loginPanel">
+        <h3>🔐 管理员登录</h3>
+        <div class="login-field">
+            <label for="loginUsername">账号</label>
+            <input type="text" id="loginUsername" autocomplete="username" placeholder="admin">
+        </div>
+        <div class="login-field">
+            <label for="loginPassword">密码</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" placeholder="admin">
+        </div>
+        <button class="login-submit" id="loginSubmitBtn">登录</button>
+        <p class="login-error" id="loginError"></p>
+    </div>
+
     <div class="settings-backdrop" id="settingsBackdrop"></div>
     <div class="settings-panel" id="settingsPanel">
         <h3>⚙️ 设置</h3>
@@ -613,11 +804,17 @@
         const STORAGE_KEY = 'pdfWordAssistant_vocab';
         const SETTINGS_KEY = 'pdfWordAssistant_settings';
         const SESSION_KEY = 'pdfWordAssistant_session';
+        const PROGRESS_KEY = 'pdfLibrary_progress';
+        const ADMIN_TOKEN_KEY = 'pdfLibrary_adminToken';
         const isMobile = () => window.matchMedia('(max-width: 768px)').matches;
 
         let pdfDoc = null;
         let currentPage = 1;
         let currentFileMeta = null;
+        let currentPdfId = null;
+        let apiAvailable = false;
+        let libraryPdfs = [];
+        let adminToken = sessionStorage.getItem(ADMIN_TOKEN_KEY) || '';
         let zoom = 1;
         let fitWidthMode = false;
         let activeWordSpan = null;
@@ -691,12 +888,34 @@
         }
 
         function saveSession() {
-            if (!settings.rememberPage || !currentFileMeta) return;
+            if (!settings.rememberPage) return;
+            if (currentPdfId) {
+                savePdfProgress(currentPdfId);
+                return;
+            }
+            if (!currentFileMeta) return;
             sessionStorage.setItem(SESSION_KEY, JSON.stringify({
                 name: currentFileMeta.name, size: currentFileMeta.size,
                 page: currentPage, zoom, ocrMode
             }));
         }
+
+        function savePdfProgress(pdfId) {
+            if (!settings.rememberPage || !pdfId) return;
+            try {
+                const all = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
+                all[pdfId] = { page: currentPage, zoom, ocrMode, updatedAt: Date.now() };
+                localStorage.setItem(PROGRESS_KEY, JSON.stringify(all));
+            } catch {}
+        }
+
+        function getPdfProgress(pdfId) {
+            try {
+                const all = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
+                return all[pdfId] || null;
+            } catch { return null; }
+        }
+
         function tryRestoreSession(file) {
             if (!settings.rememberPage) return null;
             try {
@@ -829,6 +1048,218 @@
             }).join('');
         }
 
+        // ── PDF Library & Admin ──
+        function updateAdminUI() {
+            const loggedIn = !!adminToken;
+            document.getElementById('adminLoginBtn').style.display = loggedIn ? 'none' : 'inline-block';
+            document.getElementById('adminLoggedBar').style.display = loggedIn ? 'flex' : 'none';
+        }
+
+        function openLoginModal() {
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('loginBackdrop').classList.add('show');
+            document.getElementById('loginPanel').classList.add('show');
+            document.getElementById('loginUsername').focus();
+        }
+
+        function closeLoginModal() {
+            document.getElementById('loginBackdrop').classList.remove('show');
+            document.getElementById('loginPanel').classList.remove('show');
+        }
+
+        async function checkApi() {
+            try {
+                const resp = await fetch('./api/health');
+                apiAvailable = resp.ok;
+            } catch {
+                apiAvailable = false;
+            }
+            if (!apiAvailable) {
+                document.getElementById('librarySection').style.display = 'none';
+            }
+            return apiAvailable;
+        }
+
+        async function loadLibrary() {
+            if (!apiAvailable) return;
+            const listEl = document.getElementById('libraryList');
+            try {
+                const resp = await fetch('./api/pdfs');
+                if (!resp.ok) throw new Error('加载失败');
+                const data = await resp.json();
+                libraryPdfs = data.pdfs || [];
+                renderLibrary();
+            } catch (err) {
+                listEl.innerHTML = `<div class="library-empty">书库加载失败：${err.message}</div>`;
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function formatDate(iso) {
+            const d = new Date(iso);
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        function renderLibrary() {
+            const listEl = document.getElementById('libraryList');
+            if (!libraryPdfs.length) {
+                listEl.innerHTML = '<div class="library-empty">书库暂无 PDF，点击上方按钮上传</div>';
+                return;
+            }
+            listEl.innerHTML = libraryPdfs.map(pdf => {
+                const progress = getPdfProgress(pdf.id);
+                const progressHtml = progress
+                    ? `<span class="library-item-progress">读到第 ${progress.page} 页</span>`
+                    : '';
+                const deleteBtn = adminToken
+                    ? `<button class="library-item-delete" data-id="${pdf.id}" title="删除">删除</button>`
+                    : '';
+                return `
+                    <div class="library-item" data-id="${pdf.id}">
+                        <span class="library-item-icon">📄</span>
+                        <div class="library-item-info">
+                            <div class="library-item-name" title="${pdf.name}">${pdf.name}</div>
+                            <div class="library-item-meta">
+                                ${formatFileSize(pdf.size)} · ${formatDate(pdf.uploadedAt)}
+                                · ${pdf.uploadedBy === 'admin' ? '管理员' : '用户'}上传
+                            </div>
+                        </div>
+                        ${progressHtml}
+                        ${deleteBtn}
+                    </div>`;
+            }).join('');
+
+            listEl.querySelectorAll('.library-item').forEach(item => {
+                item.addEventListener('click', e => {
+                    if (e.target.classList.contains('library-item-delete')) return;
+                    openLibraryPdf(item.dataset.id);
+                });
+            });
+            listEl.querySelectorAll('.library-item-delete').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    deleteLibraryPdf(btn.dataset.id);
+                });
+            });
+        }
+
+        async function uploadToLibrary(file) {
+            if (!file || file.type !== 'application/pdf') {
+                showToast('请上传 PDF 文件', 'warn');
+                return;
+            }
+            showToast('正在上传...');
+            try {
+                const headers = { 'Content-Type': 'application/pdf' };
+                if (adminToken) headers['Authorization'] = 'Bearer ' + adminToken;
+                const resp = await fetch(`./api/pdfs?name=${encodeURIComponent(file.name)}`, {
+                    method: 'POST',
+                    headers,
+                    body: await file.arrayBuffer()
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || '上传失败');
+                showToast(`「${file.name}」已上传到书库`, 'success');
+                await loadLibrary();
+            } catch (err) {
+                showToast('上传失败：' + err.message, 'warn');
+            }
+        }
+
+        async function deleteLibraryPdf(id) {
+            const pdf = libraryPdfs.find(p => p.id === id);
+            if (!pdf || !confirm(`确定删除「${pdf.name}」？`)) return;
+            try {
+                const resp = await fetch(`./api/pdfs/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + adminToken }
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || '删除失败');
+                showToast('已删除', 'success');
+                if (currentPdfId === id) resetToUpload();
+                await loadLibrary();
+            } catch (err) {
+                showToast('删除失败：' + err.message, 'warn');
+            }
+        }
+
+        async function openLibraryPdf(id) {
+            const pdf = libraryPdfs.find(p => p.id === id);
+            if (!pdf) return;
+
+            document.getElementById('uploadError').textContent = '';
+            document.getElementById('uploadArea').style.display = 'none';
+            document.getElementById('pdfContainer').style.display = 'block';
+
+            const wrapper = document.getElementById('pdfWrapper');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading';
+            loadingDiv.textContent = '正在加载 PDF...';
+            wrapper.appendChild(loadingDiv);
+
+            try {
+                currentPdfId = id;
+                currentFileMeta = { name: pdf.name, size: pdf.size };
+                const restored = getPdfProgress(id);
+                currentPage = restored?.page || 1;
+                zoom = restored?.zoom || 1;
+                ocrMode = restored?.ocrMode || false;
+                fitWidthMode = false;
+                ocrCache.clear();
+                await terminateOcrWorker();
+
+                pdfDoc = await pdfjsLib.getDocument(`./api/pdfs/${id}/file`).promise;
+                loadingDiv.remove();
+                document.getElementById('pageInput').max = pdfDoc.numPages;
+                if (restored) showToast(`已恢复到第 ${currentPage} 页`, 'success');
+                await renderPage(currentPage);
+                updateToolbar();
+            } catch (err) {
+                loadingDiv.remove();
+                document.getElementById('uploadError').textContent = 'PDF 加载失败：' + err.message;
+                document.getElementById('uploadArea').style.display = 'block';
+                document.getElementById('pdfContainer').style.display = 'none';
+                currentPdfId = null;
+            }
+        }
+
+        async function adminLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            document.getElementById('loginError').textContent = '';
+            try {
+                const resp = await fetch('./api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || '登录失败');
+                adminToken = data.token;
+                sessionStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
+                updateAdminUI();
+                renderLibrary();
+                closeLoginModal();
+                showToast('管理员登录成功', 'success');
+            } catch (err) {
+                document.getElementById('loginError').textContent = err.message;
+            }
+        }
+
+        function adminLogout() {
+            adminToken = '';
+            sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+            updateAdminUI();
+            renderLibrary();
+            showToast('已退出登录');
+        }
+
         // ── PDF loading ──
         async function loadPDF(file) {
             if (!file || file.type !== 'application/pdf') {
@@ -846,6 +1277,7 @@
             wrapper.appendChild(loadingDiv);
 
             try {
+                currentPdfId = null;
                 currentFileMeta = { name: file.name, size: file.size };
                 const restored = tryRestoreSession(file);
                 currentPage = restored?.page || 1;
@@ -1466,6 +1898,7 @@
             document.body.classList.remove('fullscreen-mode');
             document.getElementById('fullscreenBtn').textContent = '⛶';
             currentFileMeta = null;
+            currentPdfId = null;
             lookupHistory = [];
             renderHistory();
             pdfDoc = null;
@@ -1479,6 +1912,7 @@
             document.getElementById('pdfContainer').style.display = 'none';
             document.getElementById('uploadArea').style.display = 'block';
             document.getElementById('scanWarning').style.display = 'none';
+            if (apiAvailable) loadLibrary();
         }
 
         // ── Keyboard shortcuts ──
@@ -1490,7 +1924,7 @@
                 }
                 return;
             }
-            if (e.key === 'Escape') { closePopup(); closeSettings(); return; }
+            if (e.key === 'Escape') { closePopup(); closeSettings(); closeLoginModal(); return; }
             if (e.key === 'f' || e.key === 'F') { if (pdfDoc) { e.preventDefault(); toggleFullscreen(); } return; }
             if (!pdfDoc) return;
             if (e.key === 'ArrowLeft') { e.preventDefault(); prevPage(); }
@@ -1582,12 +2016,27 @@
             document.getElementById('vocabSidebar').classList.toggle('open');
         };
 
+        document.getElementById('adminLoginBtn').onclick = openLoginModal;
+        document.getElementById('adminLogoutBtn').onclick = adminLogout;
+        document.getElementById('loginSubmitBtn').onclick = adminLogin;
+        document.getElementById('loginBackdrop').onclick = closeLoginModal;
+        document.getElementById('loginPassword').addEventListener('keydown', e => {
+            if (e.key === 'Enter') adminLogin();
+        });
+        document.getElementById('libraryUploadBtn').onclick = () => document.getElementById('libraryInput').click();
+        document.getElementById('libraryInput').addEventListener('change', e => {
+            if (e.target.files[0]) uploadToLibrary(e.target.files[0]);
+            e.target.value = '';
+        });
+
         window.addEventListener('resize', () => {
             if (fitWidthMode && pdfDoc) renderPage(currentPage).then(updateToolbar);
         });
 
         renderVocabList();
         renderHistory();
+        updateAdminUI();
+        checkApi().then(ok => { if (ok) loadLibrary(); });
     </script>
 </body>
 </html>
